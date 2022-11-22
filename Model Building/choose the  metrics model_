@@ -1,0 +1,5 @@
+#predicting the value to test set 
+SELECTING THE METRICS OF THE MODEL :
+x_pred= regressor.predict(Y_test)
+#printing the accuracy for test set 
+print(r2_score(X_test,x_pred)
