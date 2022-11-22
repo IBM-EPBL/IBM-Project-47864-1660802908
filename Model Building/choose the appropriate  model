@@ -1,0 +1,7 @@
+choode the appropriate model
+# loading the leniar regression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score
+regressor = RandomForestRegressor(n_estimator = 1000,max_depth = 10,random_state = 34)
+#Fitting the model
+regressor.fit(Y_train,np.ravel(X_train,order='C'))
