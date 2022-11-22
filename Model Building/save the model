@@ -1,0 +1,3 @@
+#saving  the model for the future use
+filename='car_resale.sav'
+pickle.dump(regressor,open(filename,"wb"))
