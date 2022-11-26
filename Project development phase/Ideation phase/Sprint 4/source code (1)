@@ -1,0 +1,217 @@
+%matplotlib inline
+import warnings
+warnings.filterwarnings('ignore')
+import pandas as pd
+import seaborn as sns
+import numpy as np
+import datetime
+import matplotlib
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt
+import curves
+from sklearn import preprocessing
+from sklearn.linear_model import Lasso
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, Normalizer
+from spark_sklearn import GridSearchCV
+from spark_sklearn.util import createLocalSparkSession
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import mean_squared_error
+sns.distplot(cars['Price'])
+#skewness and kurtosis
+print("Skewness: %f" % cars['Price'].skew())
+print("Kurtosis: %f" % cars['Price'].kurt())
+attrib = 'Mileage'
+data = pd.concat([cars['Price'], cars[attrib]], axis=1)
+data.plot.scatter(x=attrib, y='Price', ylim=(0,450000));
+attrib = 'Year'
+data = pd.concat([cars['Price'], cars[attrib]], axis=1)
+data.plot.scatter(x=attrib, y='Price', ylim=(0,450000));
+attrib = 'Make'
+data = pd.concat([cars['Price'], cars[attrib]], axis=1)
+f, ax = plt.subplots(figsize=(20, 12))
+fig = sns.boxplot(x=attrib, y="Price", data=data)
+fig.axis(ymin=0, ymax=450000);
+attrib = 'Year'
+data = pd.concat([cars['Price'], cars[attrib]], axis=1)
+f, ax = plt.subplots(figsize=(18, 12))
+fig = sns.boxplot(x=attrib, y="Price", data=data)
+fig.axis(ymin=0, ymax=450000);
+attrib = 'State'
+data = pd.concat([cars['Price'], cars[attrib]], axis=1)
+f, ax = plt.subplots(figsize=(18, 12))
+fig = sns.boxplot(x=attrib, y="Price", data=data)
+fig.axis(ymin=0, ymax=450000);
+print("Find most important features relative to target")
+corr = cars.corr()
+corr.sort_values(["Price"], ascending = False, inplace = True)
+print(corr.Price)
+corrmat = cars.corr()
+f, ax = plt.subplots(figsize=(7, 7))
+sns.heatmap(corrmat, vmax=.8, square=True);
+k = 4 #number of variables for heatmap
+cols = corrmat.nlargest(k, 'Price')['Price'].index
+cm = np.corrcoef(cars[cols].values.T)
+sns.set(font_scale=1.25)
+hm = sns.heatmap(cm, cbar=True, annot=True, square=True, fmt='.2f', annot_kws={'size': 10}, yticklabels=cols.values, xticklabels=cols.values)
+plt.show()
+num_features = ["Price", "Mileage", "Year"]
+sns.pairplot(cars[num_features], size = 2.5)
+plt.show();
+cat_val = ["City", "State", "Vin", "Make","Model"]
+for col in cat_val:
+    print ([col]," : ",cars[col].unique())
+attrib = 'Make'
+data = pd.concat([cars['Price'], cars[attrib]], axis=1)
+f, ax = plt.subplots(figsize=(20, 12))
+fig = sns.boxplot(x=attrib, y="Price", data=data)
+fig.axis(ymin=0, ymax=450000);
+from numpy import percentile
+from functools import partial
+
+category='Model'
+
+models = cars[category].unique(
+p25 = cars.groupby(by=category)[category,'Price'].agg(lambda x: percentile(x['Price'], 20))
+p80 = cars.groupby(by=category)[category,'Price'].agg(lambda x: percentile(x['Price'], 80))
+print("Too new: %d" % cleaned_cars.loc[cleaned_cars.Year >= 2017].count()['Id'])
+print("Too few km: " , cleaned_cars.loc[cleaned_cars.Mileage < 5000].count()['Id'])
+print("Too many km: " , cleaned_cars.loc[cleaned_cars.Mileage > 250000].count()['Id'])
+cleaned_cars = cleaned_cars.drop(["Id", "State", "Vin", "City"], axis=1)
+
+# Replace the NaN values for categoric attributes
+cleaned_cars['Make'].fillna(value='blank', inplace=True)
+cleaned_cars['Model'].fillna(value='blank', inplace=True)
+
+
+# Drop duplicates
+cleaned_cars = cleaned_cars.drop_duplicates(["Year", "Mileage", "Price", "Make", "Model"])
+
+# Remove outliers
+cleaned_cars = cleaned_cars[
+        (cleaned_cars.Year <= 2017) 
+      & (cleaned_cars.Year >= 2008)  
+      & (cleaned_cars.Mileage >= 5000) 
+      & (cleaned_cars.Mileage <= 250000)]
+
+# Remove extra column
+cleaned_cars = cleaned_cars.drop(["Unnamed: 0"], axis=1)
+from scipy.stats import norm
+from scipy import stats
+
+# Using Histogram and normal probability plot
+sns.distplot(cleaned_cars['Price'], fit=norm);
+fig = plt.figure()
+res = stats.probplot(cleaned_cars['Price'], plot=plt)
+rom sklearn.preprocessing import Imputer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.pipeline import Pipeline
+from sklearn.pipeline import FeatureUnion
+from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator, TransformerMixin
+
+import os
+
+# Create a class to select numerical or categorical columns 
+# since Scikit-Learn doesn't handle DataFrames yet
+
+class DFSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, feature_names):
+        self.feature_names = feature_names
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X):
+        return X[self.feature_names].values
+cat_features = ["Make", "Model"]
+num_features = list(cars_train.drop(cat_features, axis=1))
+
+# Building the Pipelines for categorical and numerical dataframes
+numerical_pipeline = Pipeline([
+    ("selector", DFSelector(num_features)),
+    ("std_scaler", StandardScaler())
+])
+
+categorical_pipeline = Pipeline([
+    ("selector", DFSelector(cat_features)),
+    ("encoder", OneHotEncoder(sparse=True))
+])
+
+# full_pipeline
+full_pipeline = FeatureUnion(transformer_list =[
+    ("num_pipeline", numerical_pipeline),
+    ("cat_pipeline", categorical_pipeline)
+])
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import make_scorer
+
+def RF_SparkizedGridSearchCV(X, y):
+    """ Performs grid search over the 'max_depth' parameter for a 
+        decision tree regressor trained on the input data [X, y]. """
+    
+    # Create cross-validation sets from the training data
+    cv_sets = ShuffleSplit(n_splits = 10, test_size = 0.20, random_state = 42)
+
+    # Create a decision tree regressor object
+    regressor = RandomForestRegressor()
+
+    # Create a dictionary for the parameter 'max_depth' with a range from 1 to 10
+    params = {'max_depth':[16, 17, 18]}
+
+    # Transform 'performance_metric' into a scoring function using 'make_scorer' 
+    scoring_fnc = make_scorer(performance_metric)
+
+    # Create the grid search cv object --> GridSearchCV()
+    sc = createLocalSparkSession().sparkContext
+    grid = GridSearchCV(sc, estimator=regressor, param_grid=params, scoring=scoring_fnc, cv=cv_sets)
+
+    # Fit the grid search object to the data to compute the optimal model
+    tree_reg = grid.fit(X, y)
+    
+    # Return the best parameters after fitting the data
+    return tree_reg\
+# RandomForestRegressor score for price prediction
+
+print(bp)
+print("\nRandom Forest Regressor score without CV on train set: %.3f" % forest_reg_model.score(cars_train, cars_price_train)) #score on train set
+print("Random Forest Regressor score without CV on test set: %.3f" % forest_reg_model.score(cars_test, cars_price_test)) #score on test set
+print("Random Forest Regressor Best score with CV=4: %.3f" % best_score(forest_reg, 4)) # -> best score on test set is high
+print(price_predictions_train_normal[25670:25680])
+print('\n')
+print(list(cars_price_train_normal[25670:25680]))
+def display_scores(scores):
+    print("Scores:", scores)
+    print("Mean:", scores.mean())
+    print("Standard deviation:", scores.std())
+
+train_scores = cross_val_score(lin_reg_model, ohe_cars_train, np.exp(cars_price_train),
+                         scoring="neg_mean_squared_error", cv=10)
+tree_rmse_scores = np.sqrt(-train_scores)
+
+display_scores(tree_rmse_scores)
+
+train_scores = cross_val_score(tree_reg_model, cars_train, np.exp(cars_price_train),
+                         scoring="neg_mean_squared_error", cv=10)
+tree_rmse_scores = np.sqrt(-train_score
+from rfpimp import cv_importances, plot_importances
+%time I = cv_importances(final_model, cars_train, np.exp(cars_price_train), k=5)
+plot_importances(I)
+features = cleaned_cars.drop(['Price'], axis=1)
+prices = cleaned_cars['Price'].copy()
+
+final_rmses= cross_val_score(final_model, features, np.exp(prices),
+                          scoring="neg_mean_squared_error", cv=KFold(10, shuffle=True))
+
+final_rmse_scores = np.sqrt(-final_rmses)
+display_scores(final_rmse_scores)
+final_scores = cross_val_score(tree_reg_model, features, np.exp(prices),
+                          cv=KFold(10, shuffle=True))
+
+display_scores(final_scores)
+
+
+    
+    
+    
+    
